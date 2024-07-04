@@ -63,3 +63,58 @@ class Server:
                     self.clients.remove(client)
                     self.client_list.insert(tk.END, f"Client {client['address']} disconnected\n")
                     self.client_list.yview(tk.END)
+
+    def handle_client(self, client_socket, addr):
+        self.client_list.insert(tk.END, f"Client {addr} connected\n")
+        self.client_list.yview(tk.END)
+
+        # Inform the new client of existing clients
+        for client in self.clients:
+            if client['socket'] != client_socket:
+                client_socket.send(cipher.encrypt(f"{client['username']} is already in the chat".encode('utf-8')))
+
+        while True:
+            try:
+                msg = client_socket.recv(1024)
+                if msg:
+                    decrypted_msg = cipher.decrypt(msg).decode('utf-8')
+                    if decrypted_msg.startswith('NEWUSER:'):
+                        username = decrypted_msg.split(':')[1]
+                        for client in self.clients:
+                            if client['socket'] == client_socket:
+                                client['username'] = username
+                        self.broadcast(f"{username} has joined the chat", sender=client_socket)
+                    else:
+                        self.messages.insert(tk.END, decrypted_msg + "\n")
+                        self.messages.yview(tk.END)
+                        self.broadcast(decrypted_msg, sender=client_socket)
+                        
+            except Exception as e:
+                username = None
+                for client in self.clients:
+                    if client['socket'] == client_socket:
+                        username = client['username']
+                        break
+                if username:
+                    self.broadcast(f"{username} has left the chat", sender=client_socket)
+                client_socket.close()
+                self.clients = [c for c in self.clients if c['socket'] != client_socket]
+                self.client_list.insert(tk.END, f"Client {addr} disconnected\n")
+                self.client_list.yview(tk.END)
+                break
+
+    def accept_clients(self):
+        while True:
+            client_socket, addr = self.server_socket.accept()
+            self.clients.append({'socket': client_socket, 'address': addr, 'username': None})
+            client_thread = threading.Thread(target=self.handle_client, args=(client_socket, addr))
+            client_thread.start()
+
+    def run(self):
+        server_thread = threading.Thread(target=self.accept_clients)
+        server_thread.start()
+        self.root.mainloop()
+
+if __name__ == "__main__":
+    server = Server()
+    server.run()
