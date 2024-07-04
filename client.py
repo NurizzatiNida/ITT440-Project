@@ -64,3 +64,50 @@ class Client:
         self.username = None
       
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+    def on_closing(self):
+        if self.username:
+            exit_msg = f"{self.username} has left the chat"
+            encrypted_msg = cipher.encrypt(exit_msg.encode('utf-8'))
+            self.client_socket.send(encrypted_msg)
+        self.client_socket.close()
+        self.root.destroy()
+
+    def set_username(self):
+        self.username = self.username_entry.get()
+        self.username_entry.config(state=tk.DISABLED)
+        self.enter_button.config(state=tk.DISABLED)
+        join_msg = f"NEWUSER:{self.username}"
+        encrypted_msg = cipher.encrypt(join_msg.encode('utf-8'))
+        self.client_socket.send(encrypted_msg)
+
+    def send_message(self):
+        if self.username:
+            msg = self.message_entry.get()
+            self.message_entry.delete(0, tk.END)
+            full_msg = f"{self.username}: {msg}"
+            encrypted_msg = cipher.encrypt(full_msg.encode('utf-8'))
+            self.client_socket.send(encrypted_msg)
+            self.chat_box.insert(tk.END, full_msg + "\n")
+            self.chat_box.yview(tk.END)
+
+    def receive_messages(self):
+        while True:
+            try:
+                msg = self.client_socket.recv(1024)
+                if msg:
+                    decrypted_msg = cipher.decrypt(msg).decode('utf-8')
+                    self.chat_box.insert(tk.END, decrypted_msg + "\n")
+                    self.chat_box.yview(tk.END)
+            except Exception as e:
+                self.client_socket.close()
+                break
+
+    def run(self):
+        receive_thread = threading.Thread(target=self.receive_messages)
+        receive_thread.start()
+        self.root.mainloop()
+
+if __name__ == "__main__":
+    client = Client()
+    client.run()
