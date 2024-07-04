@@ -65,7 +65,7 @@ class Client:
       
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
-         def on_closing(self):
+    def on_closing(self):
         if self.username:
             exit_msg = f"{self.username} has left the chat"
             encrypted_msg = cipher.encrypt(exit_msg.encode('utf-8'))
